@@ -35,7 +35,7 @@ func (db *Simple) Exists(key string) bool {
 	path := fs.NewFilepath(db.Location())
 	path.Append(key)
 	_, err := os.Stat(path.Unwrap())
-	return os.IsExist(err)
+	return !os.IsNotExist(err)
 }
 
 func (db *Simple) Delete(key string) error {

@@ -1,7 +1,7 @@
 package filesystem
 
 import (
-	"encoding/gob"
+	"github.com/vmihailenco/msgpack"
 	"io/ioutil"
 	"os"
 )
@@ -11,7 +11,7 @@ func Load(path Filepath, dest interface{}) error {
 	if err != nil {
 		return err
 	}
-	dec := gob.NewDecoder(f)
+	dec := msgpack.NewDecoder(f)
 	return dec.Decode(dest)
 }
 

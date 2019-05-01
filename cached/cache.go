@@ -2,9 +2,9 @@ package cached
 
 import (
 	"bytes"
-	"encoding/gob"
 	"fmt"
 	fs "github.com/AlmightyFloppyFish/sfsdb-go/filesystem"
+	"github.com/vmihailenco/msgpack"
 	"sort"
 )
 
@@ -43,7 +43,7 @@ func (c Cache) Load(key string, dest interface{}) bool {
 		return false
 	}
 	reader := bytes.NewReader(encoded)
-	dec := gob.NewDecoder(reader)
+	dec := msgpack.NewDecoder(reader)
 
 	if err := dec.Decode(dest); err != nil {
 		fmt.Printf("\nsfsdb: Cache violation (%s): %s", key, err.Error())

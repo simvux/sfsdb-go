@@ -1,7 +1,7 @@
 package filesystem
 
 import (
-	"encoding/gob"
+	"github.com/vmihailenco/msgpack"
 	"os"
 )
 
@@ -10,7 +10,7 @@ func Save(path Filepath, data interface{}) error {
 	if err != nil {
 		return err
 	}
-	enc := gob.NewEncoder(f)
+	enc := msgpack.NewEncoder(f)
 	return enc.Encode(data)
 }
 

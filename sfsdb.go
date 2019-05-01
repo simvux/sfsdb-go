@@ -2,6 +2,7 @@ package sfsdb
 
 import (
 	"github.com/AlmightyFloppyFish/sfsdb-go/cached"
+	//"github.com/AlmightyFloppyFish/sfsdb-go/indexed"
 	"github.com/AlmightyFloppyFish/sfsdb-go/simple"
 	"os"
 )
@@ -25,9 +26,13 @@ type Database interface {
 }
 
 // New database, Set cache to 0 for uncached database.
-func New(location string, cache uint64) Database {
+func New(location string, cache uint64, indexed uint64) Database {
 	os.MkdirAll(location, 0777)
 
+	//if indexed > 0 {
+	//db := indexed.New(location, cache)
+	//	return &db
+	/*} else*/
 	if cache > 0 {
 		db := cached.New(location, cache)
 		return &db

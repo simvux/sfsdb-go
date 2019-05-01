@@ -61,7 +61,8 @@ func (db *Cached) Load(key string, dest interface{}) error {
 	if path.Unwrap() == db.Location() {
 		return fmt.Errorf(errIllegalPath, path.Unwrap())
 	}
-	return fs.Load(path, dest)
+	a := fs.Load(path, dest)
+	return a
 }
 
 func (db *Cached) Exists(key string) bool {

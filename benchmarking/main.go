@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/AlmightyFloppyFish/sfsdb-go"
+	"os"
 	"time"
 )
 
@@ -13,6 +14,9 @@ type TestData struct {
 }
 
 func main() {
+	if os.RemoveAll("db") != nil {
+		panic("could not delete out benchmark")
+	}
 	{
 		fmt.Println("uncached: ")
 		db := sfsdb.New("db", 0, 0)
@@ -35,6 +39,9 @@ func main() {
 			db.Load("test_data", &res)
 		}
 		fmt.Println("1000 Loads took:", time.Since(t))
+	}
+	if os.RemoveAll("db") != nil {
+		panic("could not delete out benchmark")
 	}
 	{
 		fmt.Println("cached: ")

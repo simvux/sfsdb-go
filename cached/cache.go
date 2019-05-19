@@ -1,78 +1,96 @@
 package cached
 
 import (
-	"bytes"
+	//"bytes"
 	"fmt"
 	fs "github.com/AlmightyFloppyFish/sfsdb-go/filesystem"
-	"github.com/vmihailenco/msgpack"
+	//"github.com/vmihailenco/msgpack"
 	"sort"
+	"sync"
 )
 
 // Cache holds copies of key/value stored in ram for faster access
 // A key/value pair can never be in cache without being saved on disk,
 // however can be saved on disk without being saved in cache
-type Cache map[string][]byte
+type Cache struct{ content sync.Map }
 
 // CacheCounter keeps track of which keys gets used the most,
 // to later decide which pairs should be cached
-type CacheCounter map[string]uint64
+type CacheCounter struct {
+	content map[string]uint64
+	lock    *sync.RWMutex
+}
 
 // NewCache inits the map
-func NewCache() Cache {
-	return Cache(make(map[string][]byte))
+func NewCache() *Cache {
+	return &Cache{sync.Map{}}
 }
 
 // NewCacheCounter inits the map
 func NewCacheCounter() CacheCounter {
-	return CacheCounter(make(map[string]uint64))
+	return CacheCounter{
+		content: make(map[string]uint64),
+		lock:    &sync.RWMutex{},
+	}
 }
 
 // Add or edit key in cache
-func (c Cache) Add(key string, value []byte) {
-	c[key] = value
+func (c *Cache) Add(key string, value []byte) {
+	c.content.Store(key, value)
 }
 
 // Remove from cache
-func (c Cache) Remove(key string) {
-	delete(c, key)
+func (c *Cache) Remove(key string) {
+	c.content.Delete(key)
 }
 
-func (c Cache) Load(key string, dest interface{}) bool {
-	encoded, exists := c[key]
+func (c *Cache) Load(key string, dest interface{}) error {
+	encoded, exists := c.content.Load(key)
 	if !exists {
-		return false
+		return fmt.Errorf("Does not exist")
 	}
-	reader := bytes.NewReader(encoded)
-	dec := msgpack.NewDecoder(reader)
 
-	if err := dec.Decode(dest); err != nil {
-		fmt.Printf("\nsfsdb: Cache violation (%s): %s", key, err.Error())
-		return false
-	}
-	return true
+	dest = encoded
+	return nil
 }
 
 // AddTracker adds a usage tracker
 func (cc CacheCounter) AddTracker(key string) {
-	cc[key] = 0
+	cc.lock.Lock()
+	cc.content[key] = 0
+	cc.lock.Unlock()
 }
 
 // DelTracker removes a usage tracker
 func (cc CacheCounter) DelTracker(key string) {
-	delete(cc, key)
+	cc.lock.Lock()
+	delete(cc.content, key)
+	cc.lock.Unlock()
 }
 
 // IncreaseUse adds one to the use counter for key
 func (cc CacheCounter) IncreaseUse(key string) {
-	cc[key]++
+	cc.lock.Lock()
+	cc.content[key]++
+	cc.lock.Unlock()
+}
+
+// Len gets length of the content field
+func (cc CacheCounter) len() int {
+	cc.lock.RLock()
+	length := len(cc.content)
+	cc.lock.RUnlock()
+	return length
 }
 
 // Reset prevents integer overflows by pushing back all values, maintaining the percentual
 // difference between the counts.
 func (cc CacheCounter) Reset() {
-	for i, v := range cc {
-		cc[i] = v / 5
+	cc.lock.Lock()
+	for i, v := range cc.content {
+		cc.content[i] = v / 5
 	}
+	cc.lock.Unlock()
 }
 
 type pair struct {
@@ -82,12 +100,14 @@ type pair struct {
 
 // Resync loads the db.cacheLimit top keys into db.cache
 func (db *Cached) Resync() {
-	pairs := make([]pair, len(db.cacheCount))
+	db.cacheCount.lock.RLock() // TODO: Am i locking this safely?
+	pairs := make([]pair, db.cacheCount.len())
 	count := 0
-	for i, v := range db.cacheCount {
+	for i, v := range db.cacheCount.content {
 		pairs[count] = pair{i, v}
 		count++
 	}
+	db.cacheCount.lock.RUnlock()
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].value > pairs[j].value })
 
 	for i, pair := range pairs {
@@ -96,7 +116,7 @@ func (db *Cached) Resync() {
 		} else if uint64(i) >= db.cacheLimit && db.cacheLimit > 0 {
 			break
 		}
-		if _, exists := db.cache[pair.key]; exists {
+		if _, exists := db.cache.content.Load(pair.key); exists {
 			// Skip this one because it already exists
 			continue
 		}
@@ -108,6 +128,6 @@ func (db *Cached) Resync() {
 			fmt.Printf("\nsfsdb: File and Cache mismatch (%s): %s", pair.key, err.Error())
 			continue
 		}
-		db.cache[pair.key] = data
+		db.cache.content.Store(pair.key, data)
 	}
 }

@@ -1,10 +1,10 @@
 package cached
 
 import (
-	//"bytes"
+	"bytes"
 	"fmt"
 	fs "github.com/AlmightyFloppyFish/sfsdb-go/filesystem"
-	//"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack"
 	"sort"
 	"sync"
 )
@@ -12,7 +12,10 @@ import (
 // Cache holds copies of key/value stored in ram for faster access
 // A key/value pair can never be in cache without being saved on disk,
 // however can be saved on disk without being saved in cache
-type Cache struct{ content sync.Map }
+type Cache struct {
+	content map[string][]byte
+	//lock    *sync.RWMutex
+}
 
 // CacheCounter keeps track of which keys gets used the most,
 // to later decide which pairs should be cached
@@ -22,8 +25,11 @@ type CacheCounter struct {
 }
 
 // NewCache inits the map
-func NewCache() *Cache {
-	return &Cache{sync.Map{}}
+func NewCache() Cache {
+	return Cache{
+		content: make(map[string][]byte),
+		//lock:    &sync.RWMutex{},
+	}
 }
 
 // NewCacheCounter inits the map
@@ -36,22 +42,27 @@ func NewCacheCounter() CacheCounter {
 
 // Add or edit key in cache
 func (c *Cache) Add(key string, value []byte) {
-	c.content.Store(key, value)
+	c.content[key] = value
 }
 
 // Remove from cache
 func (c *Cache) Remove(key string) {
-	c.content.Delete(key)
+	delete(c.content, key)
 }
 
-func (c *Cache) Load(key string, dest interface{}) error {
-	encoded, exists := c.content.Load(key)
+func (c *Cache) Load(key string, dest interface{}) bool {
+	encoded, exists := c.content[key]
 	if !exists {
-		return fmt.Errorf("Does not exist")
+		return false
 	}
 
-	dest = encoded
-	return nil
+	dec := msgpack.NewDecoder(bytes.NewReader(encoded))
+
+	if err := dec.Decode(dest); err != nil {
+		fmt.Printf("\nsfsdb: Cache violation (%s): %s", key, err.Error())
+	}
+
+	return true
 }
 
 // AddTracker adds a usage tracker
@@ -116,7 +127,7 @@ func (db *Cached) Resync() {
 		} else if uint64(i) >= db.cacheLimit && db.cacheLimit > 0 {
 			break
 		}
-		if _, exists := db.cache.content.Load(pair.key); exists {
+		if _, exists := db.cache.content[pair.key]; exists {
 			// Skip this one because it already exists
 			continue
 		}
@@ -128,6 +139,6 @@ func (db *Cached) Resync() {
 			fmt.Printf("\nsfsdb: File and Cache mismatch (%s): %s", pair.key, err.Error())
 			continue
 		}
-		db.cache.content.Store(pair.key, data)
+		db.cache.content[pair.key] = data
 	}
 }

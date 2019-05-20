@@ -62,7 +62,10 @@ func main() {
 		t = time.Now()
 		for x := 0; x < 1000; x++ {
 			var res TestData
-			cdb.Load("test_data", &res)
+			err := cdb.Load("test_data", &res)
+			if err != nil {
+				panic(err)
+			}
 		}
 		fmt.Println("1000 Loads took:", time.Since(t))
 	}

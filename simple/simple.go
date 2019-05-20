@@ -35,16 +35,21 @@ func (db *Simple) Save(key string, data interface{}) error {
 		return fmt.Errorf(errIllegalPath, path.Unwrap())
 	}
 
-	lock := db.locker.Get(key)
+	lock := db.locker.GetWrite(key)
 	err := fs.Save(path, data)
-	db.locker.Done(key, lock)
+	db.locker.DoneWrite(key, lock)
 	return err
 }
 
 func (db *Simple) Load(key string, dest interface{}) error {
 	path := fs.NewFilepath(db.Location())
 	path.Append(key)
-	return fs.Load(path, dest)
+
+	lock := db.locker.GetRead(key)
+	err := fs.Load(path, dest)
+	db.locker.DoneRead(key, lock)
+
+	return err
 }
 
 func (db *Simple) Exists(key string) bool {
@@ -58,8 +63,8 @@ func (db *Simple) Delete(key string) error {
 	path := fs.NewFilepath(db.Location())
 	path.Append(key)
 
-	lock := db.locker.Get(key)
+	lock := db.locker.GetWrite(key)
 	err := fs.Delete(path)
-	db.locker.Done(key, lock)
+	db.locker.DoneWrite(key, lock)
 	return err
 }
